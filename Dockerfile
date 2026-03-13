@@ -1,11 +1,13 @@
-FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
-USER root
+FROM node:18-bullseye-slim
+RUN apt-get update && apt-get install -y \
+    libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+    libxkbcommon0 libxcomposite1 libxdamage1 libxext6 libxfixes3 \
+    libxrandr2 libgbm1 libasound2 libpangocairo-1.0-0 libpango-1.0-0
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-RUN playwright install chromium --with-deps
+COPY package*.json ./
+RUN npm install
+RUN npx playwright install chromium
 COPY . .
-# فرض DNS جوجل لتجنب أعطال الاتصال
-RUN printf '#!/bin/sh\necho "nameserver 8.8.8.8" > /etc/resolv.conf\nexec "$@"\n' > /start.sh && chmod +x /start.sh
-ENTRYPOINT ["/start.sh"]
-CMD ["python", "main.py"]
+RUN npm run build
+EXPOSE 3000
+CMD ["npm", "start"]
