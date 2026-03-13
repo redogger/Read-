@@ -1,11 +1,7 @@
 FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
-USER root
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN playwright install chromium --with-deps
 COPY . .
-# فرض DNS جوجل لتجنب أعطال الاتصال
-RUN printf '#!/bin/sh\necho "nameserver 8.8.8.8" > /etc/resolv.conf\nexec "$@"\n' > /start.sh && chmod +x /start.sh
-ENTRYPOINT ["/start.sh"]
 CMD ["python", "main.py"]
