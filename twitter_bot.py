@@ -53,79 +53,71 @@ async def take_screenshot(page, name):
     except: pass
 
 async def login_twitter(page):
-    logger.info("🚀 بدأت عملية الاقتحام...")
+    logger.info("☢️ هجوم الاقتحام النهائي بدأ...")
     await page.goto("https://x.com/i/flow/login", wait_until="networkidle", timeout=90000)
-    await take_screenshot(page, "1_login_page.png")
-    await human_delay(4000, 6000)
+    await take_screenshot(page, "1_start.png")
+    await asyncio.sleep(5)
 
     try:
-        logger.info("Step 1: Username entry...")
+        # 1. إدخال اسم المستخدم ببطء شديد
         user_input = page.locator('input[autocomplete="username"]')
         await user_input.wait_for(state="visible", timeout=30000)
         await user_input.focus()
-        await user_input.click(force=True)
+        await page.keyboard.type(TWITTER_USERNAME, delay=random.randint(200, 400))
+        await take_screenshot(page, "2_typed.png")
         
-        # كتابة تحاكي البشر
-        await page.keyboard.type(TWITTER_USERNAME, delay=random.randint(150, 300))
-        await take_screenshot(page, "2_username_typed.png")
-        
-        # انتظار تفعيل الزر في الخلفية
-        await asyncio.sleep(4) 
+        # ⚠️ الحل الجذري: انتظار تفعيل الزر (تويتر بيعمل فحص لليوزر في الخلفية)
+        logger.info("Waiting for Twitter validation...")
+        await asyncio.sleep(6) 
 
-        # محاولة الضغط على الزر باللغتين
-        next_button = page.locator('button:has-text("Next"), button:has-text("التالي")').last
-        if await next_button.is_visible():
-            await next_button.click(force=True)
-        else:
+        # ⚠️ محاولة الضغط بكل الوسائل الممكنة (Next / التالي)
+        # بنجرب نلاقي الزرار بأكثر من طريقة عشان نضمن القنص
+        next_selectors = [
+            'button:has-text("Next")', 
+            'button:has-text("التالي")', 
+            'div[role="button"]:has-text("Next")',
+            'div[role="button"]:has-text("التالي")'
+        ]
+        
+        success_click = False
+        for selector in next_selectors:
+            btn = page.locator(selector).last
+            if await btn.is_visible():
+                logger.info(f"Found button with selector: {selector}")
+                # الضغط عبر جافا سكريبت (تجاوز الحماية البرمجية)
+                await btn.evaluate("node => node.click()") 
+                success_click = True
+                break
+        
+        if not success_click:
+            logger.warning("All selectors failed, forcing Enter key...")
             await page.keyboard.press("Enter")
             
-        await asyncio.sleep(5)
+        await asyncio.sleep(6)
         await take_screenshot(page, "3_after_next.png")
     except Exception as e:
-        await take_screenshot(page, "error_username.png")
+        await take_screenshot(page, "error_step1.png")
         raise e
 
-    # تحدي الأمان
+    # --- خطوة الباسورد (بنفس القوة) ---
     try:
-        verify_field = page.locator('input[data-testid="ocfEnterTextTextInput"]')
-        if await verify_field.is_visible(timeout=5000):
-            await verify_field.focus()
-            await page.keyboard.type(TWITTER_EMAIL if TWITTER_EMAIL else TWITTER_USERNAME, delay=150)
-            await take_screenshot(page, "4_security_challenge.png")
-            sec_btn = page.locator('button:has-text("Next"), button:has-text("التالي"), button:has-text("متابعة")').last
-            if await sec_btn.is_visible(): await sec_btn.click(force=True)
-            else: await page.keyboard.press("Enter")
-            await asyncio.sleep(5)
-    except: pass
-
-    try:
-        logger.info("Step 2: Password entry...")
         pass_input = page.locator('input[name="password"]')
         await pass_input.wait_for(state="visible", timeout=20000)
         await pass_input.focus()
-        await page.keyboard.type(TWITTER_PASSWORD, delay=random.randint(150, 300))
-        await take_screenshot(page, "6_password_typed.png")
+        await page.keyboard.type(TWITTER_PASSWORD, delay=random.randint(200, 400))
+        await take_screenshot(page, "4_pass_typed.png")
         
-        await asyncio.sleep(2)
+        await asyncio.sleep(3)
+        
+        # الضغط على زر "تسجيل الدخول" عبر جافا سكريبت
         login_btn = page.locator('button:has-text("Log in"), button:has-text("تسجيل الدخول")').last
-        if await login_btn.is_visible(): await login_btn.click(force=True)
-        else: await page.keyboard.press("Enter")
-            
+        await login_btn.evaluate("node => node.click()")
+        
         await asyncio.sleep(10)
-        await take_screenshot(page, "7_final_check.png")
+        await take_screenshot(page, "5_final.png")
     except Exception as e:
-        await take_screenshot(page, "error_password.png")
+        await take_screenshot(page, "error_step2.png")
         raise e
-
-    # التحقق النهائي
-    try:
-        await page.wait_for_selector('[data-testid="SearchBox_Search_Input"]', timeout=30000)
-        logger.info("✅ SUCCESS: Logged in!")
-        bot_state["logged_in"] = True
-        await take_screenshot(page, "success_home.png")
-    except:
-        await take_screenshot(page, "failed_home.png")
-        raise RuntimeError("Home not detected.")
 
 # --- باقي الدوال (Feed, Like, Reply, Thread) تبقى كاملة كما هي في الكود الأصلي ---
 

@@ -7,19 +7,18 @@ from playwright.async_api import async_playwright, TimeoutError as PlaywrightTim
 
 logger = logging.getLogger(__name__)
 
-# إعدادات الحساب من الـ Secrets
+# إعدادات الحساب
 TWITTER_USERNAME = os.environ.get("TWITTER_USERNAME", "")
 TWITTER_PASSWORD = os.environ.get("TWITTER_PASSWORD", "")
 TWITTER_EMAIL = os.environ.get("TWITTER_EMAIL", "") 
 
-# إعدادات متقدمة لتخطي كشف البوتات
 LAUNCH_ARGS = [
     "--no-sandbox",
     "--disable-setuid-sandbox",
     "--disable-dev-shm-usage",
     "--disable-gpu",
     "--disable-web-security",
-    "--disable-blink-features=AutomationControlled", # إخفاء بصمة الأتمتة
+    "--disable-blink-features=AutomationControlled",
 ]
 
 bot_state = {
@@ -31,7 +30,6 @@ bot_state = {
 }
 
 def _get_chromium_path():
-    # البحث عن الكروم في مسارات Hugging Face
     candidates = [
         os.environ.get("REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE"),
         "/usr/bin/google-chrome",
@@ -39,134 +37,112 @@ def _get_chromium_path():
         os.path.expanduser("~/.cache/ms-playwright/chromium-*/chrome-linux/chrome"),
     ]
     for path in candidates:
-        if path and os.path.exists(path):
-            return path
-    for pattern in ["~/.cache/ms-playwright/chromium-*/chrome-linux/chrome"]:
-        matches = glob.glob(os.path.expanduser(pattern))
-        if matches: return matches[0]
+        if path and os.path.exists(path): return path
     return None
 
 async def human_delay(min_ms=2000, max_ms=5000):
-    """تأخير زمني لمحاكاة هدوء البشر"""
     await asyncio.sleep(random.uniform(min_ms / 1000, max_ms / 1000))
 
-async def take_screenshot(page, name="debug_login.png"):
-    """تحديث صورة المعاينة للمراقب الدوري"""
+async def take_screenshot(page, name):
+    """التقاط صورة وتسميتها ليلتقطها المراقب النفاث فوراً"""
     try:
         await page.screenshot(path=name)
+        # ننسخ الصورة أيضاً لاسم ثابت ليقرأه أمر /get_debug اليدوي
+        await page.screenshot(path="debug_login.png")
         logger.info(f"📸 Screenshot saved: {name}")
     except: pass
 
 async def login_twitter(page):
-    logger.info("Direct Login Attack...")
+    logger.info("🚀 بدأت عملية الاقتحام...")
     await page.goto("https://x.com/i/flow/login", wait_until="networkidle", timeout=90000)
     await take_screenshot(page, "1_login_page.png")
     await human_delay(4000, 6000)
 
     try:
-        # الخطوة 1: إدخال اسم المستخدم
-        logger.info("Step 1: Forcing Username entry...")
+        logger.info("Step 1: Username entry...")
         user_input = page.locator('input[autocomplete="username"]')
         await user_input.wait_for(state="visible", timeout=30000)
-        
         await user_input.focus()
         await user_input.click(force=True)
         
-        # كتابة بطيئة جداً لإعطاء الواجهة فرصة للتحديث
+        # كتابة تحاكي البشر
         await page.keyboard.type(TWITTER_USERNAME, delay=random.randint(150, 300))
         await take_screenshot(page, "2_username_typed.png")
         
-        # ⚠️ الحل الجذري 1: توقف إجباري لانتظار فحص تويتر لليوزرنيم في الخلفية
-        logger.info("Waiting for Twitter API debounce...")
+        # انتظار تفعيل الزر في الخلفية
         await asyncio.sleep(4) 
 
-        # ⚠️ الحل الجذري 2: الضغط المادي على زر "التالي" أو "Next"
-        logger.info("Attempting to click Next/التالي button...")
+        # محاولة الضغط على الزر باللغتين
         next_button = page.locator('button:has-text("Next"), button:has-text("التالي")').last
-        
         if await next_button.is_visible():
-            await next_button.click(force=True, delay=200)
-            logger.info("Clicked the Next/التالي button successfully.")
+            await next_button.click(force=True)
         else:
-            logger.warning("Button not found! Falling back to Enter key.")
             await page.keyboard.press("Enter")
             
         await asyncio.sleep(5)
         await take_screenshot(page, "3_after_next.png")
     except Exception as e:
         await take_screenshot(page, "error_username.png")
-        raise RuntimeError(f"Failed at Username step: {e}")
+        raise e
 
-    # فحص تحدي الأمان (الإيميل)
+    # تحدي الأمان
     try:
         verify_field = page.locator('input[data-testid="ocfEnterTextTextInput"]')
         if await verify_field.is_visible(timeout=5000):
-            logger.warning("Twitter security challenge detected!")
             await verify_field.focus()
             await page.keyboard.type(TWITTER_EMAIL if TWITTER_EMAIL else TWITTER_USERNAME, delay=150)
-            await take_screenshot(page, "4_security_email.png")
-            
-            # نضغط على زر "التالي" أو "متابعة"
+            await take_screenshot(page, "4_security_challenge.png")
             sec_btn = page.locator('button:has-text("Next"), button:has-text("التالي"), button:has-text("متابعة")').last
-            if await sec_btn.is_visible():
-                await sec_btn.click(force=True)
-            else:
-                await page.keyboard.press("Enter")
-                
+            if await sec_btn.is_visible(): await sec_btn.click(force=True)
+            else: await page.keyboard.press("Enter")
             await asyncio.sleep(5)
-            await take_screenshot(page, "5_security_passed.png")
     except: pass
 
     try:
-        # الخطوة 2: كلمة المرور
-        logger.info("Step 2: Entering Password...")
+        logger.info("Step 2: Password entry...")
         pass_input = page.locator('input[name="password"]')
         await pass_input.wait_for(state="visible", timeout=20000)
         await pass_input.focus()
-        await pass_input.click(force=True)
         await page.keyboard.type(TWITTER_PASSWORD, delay=random.randint(150, 300))
         await take_screenshot(page, "6_password_typed.png")
         
         await asyncio.sleep(2)
-        
-        # ⚠️ الضغط على زر "تسجيل الدخول" أو "Log in" مباشرة
         login_btn = page.locator('button:has-text("Log in"), button:has-text("تسجيل الدخول")').last
-        if await login_btn.is_visible():
-            await login_btn.click(force=True, delay=200)
-        else:
-            await page.keyboard.press("Enter")
+        if await login_btn.is_visible(): await login_btn.click(force=True)
+        else: await page.keyboard.press("Enter")
             
         await asyncio.sleep(10)
-        await take_screenshot(page, "7_final_attempt.png")
+        await take_screenshot(page, "7_final_check.png")
     except Exception as e:
         await take_screenshot(page, "error_password.png")
-        raise RuntimeError(f"Failed at Password step: {e}")
+        raise e
 
     # التحقق النهائي
     try:
         await page.wait_for_selector('[data-testid="SearchBox_Search_Input"]', timeout=30000)
-        logger.info("✅ SUCCESS: Logged in and reached Home!")
+        logger.info("✅ SUCCESS: Logged in!")
         bot_state["logged_in"] = True
         await take_screenshot(page, "success_home.png")
     except:
         await take_screenshot(page, "failed_home.png")
-        raise RuntimeError("Login confirmation failed: Home not detected.")
+        raise RuntimeError("Home not detected.")
+
+# --- باقي الدوال (Feed, Like, Reply, Thread) تبقى كاملة كما هي في الكود الأصلي ---
 
 async def get_feed_tweets(page, max_tweets=5):
     tweets = []
     try:
-        await page.goto("https://x.com/home", wait_until="networkidle", timeout=30000)
+        await page.goto("https://x.com/home", wait_until="networkidle")
         await human_delay(3000, 5000)
         tweet_articles = await page.locator('article[data-testid="tweet"]').all()
         for i, article in enumerate(tweet_articles[:max_tweets]):
             try:
                 text = await article.locator('[data-testid="tweetText"]').inner_text(timeout=3000)
                 href = await article.locator('a[href*="/status/"]').first.get_attribute("href")
-                tweet_id = href.split("/status/")[-1].split("?")[0]
-                tweets.append({"id": tweet_id, "text": text, "article": article})
+                t_id = href.split("/status/")[-1].split("?")[0]
+                tweets.append({"id": t_id, "text": text, "article": article})
             except: continue
-    except Exception as e:
-        logger.error(f"Error fetching feed: {e}")
+    except: pass
     return tweets
 
 async def like_tweet(page, tweet):
@@ -174,7 +150,6 @@ async def like_tweet(page, tweet):
         btn = tweet["article"].locator('[data-testid="like"]')
         if await btn.is_visible():
             await btn.click(force=True)
-            await human_delay(1000, 2000)
             bot_state["tweets_liked"] += 1
             return True
     except: return False
@@ -182,7 +157,6 @@ async def like_tweet(page, tweet):
 async def reply_to_tweet(page, tweet, reply_text):
     try:
         await page.goto(f"https://x.com/i/web/status/{tweet['id']}")
-        await human_delay(2000, 4000)
         box = page.locator('[data-testid="tweetTextarea_0"]')
         await box.fill(reply_text)
         await page.locator('[data-testid="tweetButton"]').first.click(force=True)
@@ -193,13 +167,11 @@ async def reply_to_tweet(page, tweet, reply_text):
 async def post_thread(browser_context, thread_parts: list):
     page = await browser_context.new_page()
     try:
-        await page.goto("https://x.com/compose/tweet", wait_until="networkidle")
+        await page.goto("https://x.com/compose/tweet")
         for i, part in enumerate(thread_parts):
             await page.locator('[data-testid="tweetTextarea_0"]').fill(part)
-            if i < len(thread_parts) - 1:
-                await page.locator('[data-testid="addButton"]').click(force=True)
-            else:
-                await page.locator('[data-testid="tweetButton"]').first.click(force=True)
+            btn = '[data-testid="addButton"]' if i < len(thread_parts) - 1 else '[data-testid="tweetButton"]'
+            await page.locator(btn).first.click(force=True)
             await asyncio.sleep(2)
         return True
     except: return False
