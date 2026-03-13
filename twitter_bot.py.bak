@@ -60,7 +60,7 @@ async def take_screenshot(page, name="debug_login.png"):
 async def login_twitter(page):
     logger.info("Direct Login Attack...")
     await page.goto("https://x.com/i/flow/login", wait_until="networkidle", timeout=90000)
-    await take_screenshot(page)
+    await take_screenshot(page, "1_login_page.png")
     await human_delay(4000, 6000)
 
     try:
@@ -69,29 +69,52 @@ async def login_twitter(page):
         user_input = page.locator('input[autocomplete="username"]')
         await user_input.wait_for(state="visible", timeout=30000)
         
-        # التركيز المادي والضغط لإجبار الموقع على التفاعل
         await user_input.focus()
         await user_input.click(force=True)
-        await page.keyboard.type(TWITTER_USERNAME, delay=random.randint(100, 250))
-        await take_screenshot(page)
         
-        # الحل الجذري: الضغط على Enter من الكيبورد بدلاً من البحث عن زر "Next"
-        await page.keyboard.press("Enter")
-        await human_delay(4000, 6000)
-    except Exception as e:
-        await take_screenshot(page)
-        raise RuntimeError(f"Step 1 failed: Username field error.")
+        # كتابة بطيئة جداً لإعطاء الواجهة فرصة للتحديث
+        await page.keyboard.type(TWITTER_USERNAME, delay=random.randint(150, 300))
+        await take_screenshot(page, "2_username_typed.png")
+        
+        # ⚠️ الحل الجذري 1: توقف إجباري لانتظار فحص تويتر لليوزرنيم في الخلفية
+        logger.info("Waiting for Twitter API debounce...")
+        await asyncio.sleep(4) 
 
-    # فحص تحدي الأمان (طلب الإيميل أو الهاتف)
+        # ⚠️ الحل الجذري 2: الضغط المادي على زر "التالي" أو "Next"
+        logger.info("Attempting to click Next/التالي button...")
+        next_button = page.locator('button:has-text("Next"), button:has-text("التالي")').last
+        
+        if await next_button.is_visible():
+            await next_button.click(force=True, delay=200)
+            logger.info("Clicked the Next/التالي button successfully.")
+        else:
+            logger.warning("Button not found! Falling back to Enter key.")
+            await page.keyboard.press("Enter")
+            
+        await asyncio.sleep(5)
+        await take_screenshot(page, "3_after_next.png")
+    except Exception as e:
+        await take_screenshot(page, "error_username.png")
+        raise RuntimeError(f"Failed at Username step: {e}")
+
+    # فحص تحدي الأمان (الإيميل)
     try:
         verify_field = page.locator('input[data-testid="ocfEnterTextTextInput"]')
         if await verify_field.is_visible(timeout=5000):
             logger.warning("Twitter security challenge detected!")
             await verify_field.focus()
             await page.keyboard.type(TWITTER_EMAIL if TWITTER_EMAIL else TWITTER_USERNAME, delay=150)
-            await take_screenshot(page)
-            await page.keyboard.press("Enter")
-            await human_delay(4000, 6000)
+            await take_screenshot(page, "4_security_email.png")
+            
+            # نضغط على زر "التالي" أو "متابعة"
+            sec_btn = page.locator('button:has-text("Next"), button:has-text("التالي"), button:has-text("متابعة")').last
+            if await sec_btn.is_visible():
+                await sec_btn.click(force=True)
+            else:
+                await page.keyboard.press("Enter")
+                
+            await asyncio.sleep(5)
+            await take_screenshot(page, "5_security_passed.png")
     except: pass
 
     try:
@@ -101,24 +124,32 @@ async def login_twitter(page):
         await pass_input.wait_for(state="visible", timeout=20000)
         await pass_input.focus()
         await pass_input.click(force=True)
-        await page.keyboard.type(TWITTER_PASSWORD, delay=random.randint(100, 250))
-        await take_screenshot(page)
+        await page.keyboard.type(TWITTER_PASSWORD, delay=random.randint(150, 300))
+        await take_screenshot(page, "6_password_typed.png")
         
-        # الضغط النهائي على Enter للدخول
-        await page.keyboard.press("Enter")
-        await human_delay(8000, 12000)
+        await asyncio.sleep(2)
+        
+        # ⚠️ الضغط على زر "تسجيل الدخول" أو "Log in" مباشرة
+        login_btn = page.locator('button:has-text("Log in"), button:has-text("تسجيل الدخول")').last
+        if await login_btn.is_visible():
+            await login_btn.click(force=True, delay=200)
+        else:
+            await page.keyboard.press("Enter")
+            
+        await asyncio.sleep(10)
+        await take_screenshot(page, "7_final_attempt.png")
     except Exception as e:
-        await take_screenshot(page)
-        raise RuntimeError(f"Step 2 failed: Password field error.")
+        await take_screenshot(page, "error_password.png")
+        raise RuntimeError(f"Failed at Password step: {e}")
 
-    # التحقق النهائي من الوصول للصفحة الرئيسية
+    # التحقق النهائي
     try:
         await page.wait_for_selector('[data-testid="SearchBox_Search_Input"]', timeout=30000)
         logger.info("✅ SUCCESS: Logged in and reached Home!")
         bot_state["logged_in"] = True
         await take_screenshot(page, "success_home.png")
     except:
-        await take_screenshot(page)
+        await take_screenshot(page, "failed_home.png")
         raise RuntimeError("Login confirmation failed: Home not detected.")
 
 async def get_feed_tweets(page, max_tweets=5):
