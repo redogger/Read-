@@ -1,15 +1,3 @@
----
-title: Readsx Sovereign Suite
-emoji: 🚀
-colorFrom: black
-colorTo: green
-sdk: docker
-pinned: false
----
-
-# READSX — Sovereign AI Social Media Management Suite
-... (باقي محتوى الملف اللي معاك)
-
 # READSX — Sovereign AI Social Media Management Suite
 
 > **Zero-Failure. Absolute Autonomy.**
