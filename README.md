@@ -4,7 +4,7 @@ emoji: 🚀
 colorFrom: black
 colorTo: green
 sdk: docker
-app_port: 3000
+app_port: 7860
 pinned: false
 ---
 # READSX — Sovereign AI Social Media Management Suite
